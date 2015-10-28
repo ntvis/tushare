@@ -6,7 +6,7 @@ Created on 2014/07/31
 @contact: jimmysoa@sina.cn
 """
 
-VERSION = '0.2.8'
+VERSION = '0.3.6'
 K_LABELS = ['D', 'W', 'M']
 K_MIN_LABELS = ['5', '15', '30', '60']
 K_TYPE = {'D': 'akdaily', 'W': 'akweekly', 'M': 'akmonthly'}
@@ -22,7 +22,7 @@ DOMAINS = {'sina': 'sina.com.cn', 'sinahq': 'sinajs.cn',
            'idx': 'www.csindex.com.cn', '163': 'money.163.com',
            'em': 'eastmoney.com', 'sseq': 'query.sse.com.cn',
            'sse': 'www.sse.com.cn', 'szse': 'www.szse.cn',
-           'oss': 'tudata.oss-cn-beijing.aliyuncs.com',
+           'oss': '218.244.146.57', 'idxip':'115.29.204.48',
            'shibor': 'www.shibor.org'}
 PAGES = {'fd': 'index.phtml', 'dl': 'downxls.php', 'jv': 'json_v2.php',
          'cpt': 'newFLJK.php', 'ids': 'newSinaHy.php', 'lnews':'rollnews_ch_out_interface.php',
@@ -31,6 +31,7 @@ PAGES = {'fd': 'index.phtml', 'dl': 'downxls.php', 'jv': 'json_v2.php',
          'dp':'all_fpya.php', '163dp':'fpyg.html',
          'emxsg':'JS.aspx', '163fh':'jjcgph.php',
          'newstock':'vRPD_NewStockIssue.php', 'zz500b':'000905cons.xls',
+         'zz500wt':'000905closeweight.xls',
          't_ticks':'vMS_tradedetail.php', 'dw': 'downLoad.html',
          'qmd':'queryMargin.do', 'szsefc':'FrontController.szse',
          'ssecq':'commonQuery.do'}
@@ -77,12 +78,13 @@ CASHFLOW_URL = '%s%s/q/go.php/vFinanceAnalyze/kind/cashflow/%s?s_i=&s_a=&s_c=&re
 SHIBOR_TYPE ={'Shibor': 'Shibor数据', 'Quote': '报价数据', 'Tendency': 'Shibor均值数据',
               'LPR': 'LPR数据', 'LPR_Tendency': 'LPR均值数据'}
 SHIBOR_DATA_URL = '%s%s/shibor/web/html/%s?nameNew=Historical_%s_Data_%s.xls&downLoadPath=data&nameOld=%s%s.xls&shiborSrc=http://www.shibor.org/shibor/'
-ALL_STOCK_BASICS_FILE = '%s%s/all.csv'%(P_TYPE['http'], DOMAINS['oss'])
+ALL_STOCK_BASICS_FILE = '%s%s/static/all.csv'%(P_TYPE['http'], DOMAINS['oss'])
 SINA_CONCEPTS_INDEX_URL = '%smoney.%s/q/view/%s?param=class'
 SINA_INDUSTRY_INDEX_URL = '%s%s/q/view/%s'
 SINA_DATA_DETAIL_URL = '%s%s/quotes_service/api/%s/Market_Center.getHQNodeData?page=1&num=400&sort=symbol&asc=1&node=%s&symbol=&_s_r_a=page'
 INDEX_C_COMM = 'sseportal/ps/zhs/hqjt/csi'
-HS300_CLASSIFY_URL = '%s%s/%s/%s'
+HS300_CLASSIFY_URL_FTP = '%s%s/%s'
+HS300_CLASSIFY_URL_HTTP = '%s%s/%s/%s'
 HIST_FQ_URL = '%s%s/corp/go.php/vMS_FuQuanMarketHistory/stockid/%s.phtml?year=%s&jidu=%s'
 HIST_INDEX_URL = '%s%s/corp/go.php/vMS_MarketHistory/stockid/%s/type/S.phtml?year=%s&jidu=%s'
 HIST_FQ_FACTOR_URL = '%s%s/api/json.php/BasicStockSrv.getStockFuQuanData?symbol=%s&type=hfq'
@@ -98,7 +100,7 @@ SHIBOR_MA_COLS = ['date', 'ON_5', 'ON_10', 'ON_20', '1W_5', '1W_10', '1W_20','2W
 LPR_COLS = ['date', '1Y']
 LPR_MA_COLS = ['date', '1Y_5', '1Y_10', '1Y_20']
 INDEX_HEADER = 'code,name,open,preclose,close,high,low,0,0,volume,amount,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,d,c,3\n'
-INDEX_COLS = ['code', 'name', 'change', 'preclose', 'close', 'high', 'low', 'volume', 'amount']
+INDEX_COLS = ['code', 'name', 'change', 'open', 'preclose', 'close', 'high', 'low', 'volume', 'amount']
 HIST_FQ_COLS = ['date', 'open', 'high', 'close', 'low', 'volume', 'amount', 'factor']
 HIST_FQ_FACTOR_COLS = ['code','value']
 DATA_GETTING_TIPS = '[Getting data:]'
@@ -109,6 +111,9 @@ NETWORK_URL_ERROR_MSG = '获取失败，请检查网络和URL'
 DATE_CHK_MSG = '年度输入错误：请输入1989年以后的年份数字，格式：YYYY'
 DATE_CHK_Q_MSG = '季度输入错误：请输入1、2、3或4数字'
 TOP_PARAS_MSG = 'top有误，请输入整数或all.'
+LHB_MSG = '周期输入有误，请输入数字5、10、30或60'
+TOKEN_F_P = 'tk.csv'
+TOKEN_ERR_MSG = '请设置通联数据接口的token凭证码'
 
 import sys
 PY3 = (sys.version_info[0] >= 3)
@@ -129,9 +134,15 @@ def _write_msg(msg):
     sys.stdout.flush()
     
 def _check_input(year, quarter):
-    if type(year) is str or year < 1989 :
+    if isinstance(year, str) or year < 1989 :
         raise TypeError(DATE_CHK_MSG)
-    elif quarter is None or type(quarter) is str or quarter not in [1, 2, 3, 4]:
+    elif quarter is None or isinstance(quarter, str) or quarter not in [1, 2, 3, 4]:
         raise TypeError(DATE_CHK_Q_MSG)
+    else:
+        return True
+    
+def _check_lhb_input(last):
+    if last not in [5, 10, 30, 60]:
+        raise TypeError(LHB_MSG)
     else:
         return True
